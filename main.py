@@ -1,30 +1,27 @@
-import telebot
+ import telebot
 import random
 import datetime
 import requests
 import time
 import os
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
-
-TOKEN = "7805081492:AAHiW1kaxnCupaqR1zPYwKwFb8raqNTBQiE"
-CHANNEL_USERNAME = "dar3658"  # Your Telegram channel username (without @)
-CHANNEL_LINK = "https://t.me/dar3658"  # Your Telegram channel link
-ADMIN_ID = YOUR_TELEGRAM_USER_ID  # Your Telegram user ID for admin commands
-APPROVAL_RATE = 70  # Default approval rate (percentage)
-CHK_COST = 2  # Cost per single card check
-CHKK_COST = 5  # Cost per bulk card check (Premium only)
-CHKKK_COST = 0.50  # Charge per approved card in bulk file check
-JOIN_BONUS = 20  # Bonus credits for joining
-REFER_BONUS = 20  # Bonus credits for referring a user
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+CHANNEL_USERNAME = "dar3658"  
+CHANNEL_LINK = "https://t.me/dar3658"
+ADMIN_ID = 7987662357  
+APPROVAL_RATE = 70  
+CHK_COST = 2  
+CHKK_COST = 5  
+CHKKK_COST = 0.50  
+JOIN_BONUS = 20  
+REFER_BONUS = 20  
 
 bot = telebot.TeleBot(TOKEN)
+users = {}  
+redeem_codes = {}  
 
-# Database (Replace with real DB for production)
-users = {}  # {user_id: {"credits": 0, "is_premium": False, "banned": False, "referrals": 0}}
-redeem_codes = {}  # {code: credits}
-
-# Function to check if user is a member of the channel
+# Check if user is a member of the channel
 def is_user_member(user_id):
     try:
         member_status = bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id).status
@@ -41,11 +38,10 @@ def add_user(user_id):
     if user_id not in users:
         users[user_id] = {"credits": JOIN_BONUS, "is_premium": False, "banned": False, "referrals": 0}
 
-# Command to add a user as premium (admin only)
+# ✅ **ADMIN COMMAND: Add Premium User**
 @bot.message_handler(commands=['addpremium'])
 def add_premium(message):
-    user_id = message.chat.id
-    if user_id != ADMIN_ID:
+    if message.chat.id != ADMIN_ID:
         bot.reply_to(message, "⚠️ **You don't have permission to use this command!**")
         return
 
@@ -57,10 +53,10 @@ def add_premium(message):
     target_user_id = int(args[1])
     add_user(target_user_id)
 
-    users[target_user_id]['is_premium'] = True  # Grant premium status
+    users[target_user_id]['is_premium'] = True
     bot.reply_to(message, f"✅ **User {target_user_id} is now a premium user!**")
 
-# Start Command
+# ✅ **START Command**
 @bot.message_handler(commands=['start'])
 def start_message(message):
     user_id = message.chat.id
@@ -71,7 +67,7 @@ def start_message(message):
     add_user(user_id)
     bot.send_message(
         user_id,
-        f"🎉 **Welcome to Card Checker Bot v8.1!** 🎉\n"
+        f"🎉 **Welcome to Card Checker Bot v8.2!** 🎉\n"
         f"You have **{users[user_id]['credits']} credits**.\n"
         f"Refer users and earn **{REFER_BONUS} credits** per referral!\n\n"
         f"🛠 **Commands:**\n"
@@ -84,16 +80,13 @@ def start_message(message):
         parse_mode="Markdown"
     )
 
-# Command to check user's credits
+# ✅ **Check User Credits**
 @bot.message_handler(commands=['credits'])
 def check_credits(message):
     user_id = message.chat.id
-    if user_id in users:
-        bot.reply_to(message, f"💰 **You have {users[user_id]['credits']} credits.**")
-    else:
-        bot.reply_to(message, "⚠️ **You are not registered! Send /start to register.**")
+    bot.reply_to(message, f"💰 **You have {users[user_id]['credits']} credits.**")
 
-# Redeem Code Command
+# ✅ **Redeem Code**
 @bot.message_handler(commands=['redeem'])
 def redeem_code(message):
     user_id = message.chat.id
@@ -102,24 +95,24 @@ def redeem_code(message):
         bot.reply_to(message, "⚠️ **Invalid or expired redeem code!**")
         return
 
-    credits = redeem_codes.pop(args[1])  # Remove code after use
+    credits = redeem_codes.pop(args[1])
     users[user_id]['credits'] += credits
     bot.reply_to(message, f"🎉 **Redeemed {credits} credits!** You now have {users[user_id]['credits']} credits.")
 
-# Command to generate redeem codes (Admin only)
+# ✅ **ADMIN: Generate Redeem Code**
 @bot.message_handler(commands=['make_redeem'])
 def make_redeem_code(message):
     if message.chat.id != ADMIN_ID:
         return
 
     code = f"RC{random.randint(10000, 99999)}"
-    redeem_codes[code] = 10  # Redeem code gives 10 credits
+    redeem_codes[code] = 10  
     bot.reply_to(message, f"🎁 **Redeem Code Created:** `{code}` (10 credits)")
 
-# Command to ban a user (Admin only)
+# ✅ **ADMIN: Ban User**
 @bot.message_handler(commands=['ban'])
 def ban_user(message):
-    if message.chat.id != ADMIN_ID:7987662357
+    if message.chat.id != ADMIN_ID:
         return
 
     args = message.text.split()
@@ -128,11 +121,10 @@ def ban_user(message):
         return
 
     user_id = int(args[1])
-    if user_id in users:
-        users[user_id]['banned'] = True
-        bot.reply_to(message, f"✅ **User {user_id} has been banned.**")
+    users[user_id]['banned'] = True
+    bot.reply_to(message, f"✅ **User {user_id} has been banned.**")
 
-# Handle TXT file upload for bulk card checking
+# ✅ **Handle TXT file upload for bulk checking**
 @bot.message_handler(content_types=['document'])
 def handle_docs(message):
     user_id = message.chat.id
