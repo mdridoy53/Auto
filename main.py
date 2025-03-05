@@ -94,7 +94,7 @@ def start_message(message):
             f"📌 `/gen 6xxxxx 5` → Generate credit cards\n"
             f"📌 `/chk 4147201234567890` → Check card validity\n"
             f"📌 `/combo 10` → Generate email combos\n"
-            f"📌 `/scr @groupusername` → Scrape and clean card details\n"
+            f"📌 ` @groupusername` → Scrape and clean card details\n"
             f"📌 `/txt any_text_here` → Clean text\n"
             f"📌 **Send a file** to clean and get `Clear.txt`\n\n"
             f"💬 Join our channel for updates: [Join Here]({CHANNEL_LINK})",
