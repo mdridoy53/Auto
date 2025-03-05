@@ -1,4 +1,4 @@
- import telebot
+import telebot
 import random
 import datetime
 import requests
@@ -7,7 +7,7 @@ import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-CHANNEL_USERNAME = "dar3658"  
+CHANNEL_USERNAME = "dar3658"
 CHANNEL_LINK = "https://t.me/dar3658"
 ADMIN_ID = 7987662357  
 APPROVAL_RATE = 70  
@@ -21,7 +21,7 @@ bot = telebot.TeleBot(TOKEN)
 users = {}  
 redeem_codes = {}  
 
-# Check if user is a member of the channel
+# ✅ Check if user is a member of the channel
 def is_user_member(user_id):
     try:
         member_status = bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id).status
@@ -29,16 +29,18 @@ def is_user_member(user_id):
     except:
         return False
 
+# ✅ Force users to join the channel
 def force_join_message(chat_id):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Join Channel", url=CHANNEL_LINK))
     bot.send_message(chat_id, "⚠️ **You must join our official channel to use this bot!**", reply_markup=markup)
 
+# ✅ Register a new user with starting credits
 def add_user(user_id):
     if user_id not in users:
         users[user_id] = {"credits": JOIN_BONUS, "is_premium": False, "banned": False, "referrals": 0}
 
-# ✅ **ADMIN COMMAND: Add Premium User**
+# ✅ **ADMIN: Add Premium User**
 @bot.message_handler(commands=['addpremium'])
 def add_premium(message):
     if message.chat.id != ADMIN_ID:
@@ -52,7 +54,6 @@ def add_premium(message):
 
     target_user_id = int(args[1])
     add_user(target_user_id)
-
     users[target_user_id]['is_premium'] = True
     bot.reply_to(message, f"✅ **User {target_user_id} is now a premium user!**")
 
