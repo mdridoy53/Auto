@@ -119,7 +119,7 @@ def make_redeem_code(message):
 # Command to ban a user (Admin only)
 @bot.message_handler(commands=['ban'])
 def ban_user(message):
-    if message.chat.id != ADMIN_ID:
+    if message.chat.id != ADMIN_ID:7987662357
         return
 
     args = message.text.split()
