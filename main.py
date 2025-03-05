@@ -2,11 +2,11 @@ import random
 import string
 from pyrogram import Client, filters
 
-# Telegram Bot API Details
+# Telegram Bot Token (Get from @BotFather)
 BOT_TOKEN = "7805081492:AAGktpvpVfMvx98xJKEfQz2OFnyTmcz4uAw"
 
 # Create a Pyrogram Client
-app = Client("combo_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app = Client("combo_bot", bot_token=BOT_TOKEN)
 
 def generate_combo():
     """Generates a random Outlook email and password combination."""
@@ -21,6 +21,14 @@ def generate_combo():
     
     return email, password, gmail_email, gmail_password
 
+def generate_url():
+    """Generates a random PHP admin URL."""
+    base_url = "http://example.com/admin/"
+    random_path = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    full_url = f"{base_url}{random_path}.php"
+
+    return full_url
+
 @app.on_message(filters.command("combo"))
 async def send_combo(client, message):
     """Handles the /combo command."""
@@ -34,6 +42,18 @@ async def send_combo(client, message):
 
     # Send the response
     await message.reply_text(f"Generated Combo:\n{combo_text}")
+
+@app.on_message(filters.command("url"))
+async def send_url(client, message):
+    """Handles the /url command."""
+    url = generate_url()
+
+    # Save to url.txt
+    with open("url.txt", "a") as file:
+        file.write(url + "\n")
+
+    # Send the response
+    await message.reply_text(f"Generated Admin URL:\n{url}")
 
 if __name__ == "__main__":
     print("Bot is running...")
