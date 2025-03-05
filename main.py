@@ -2,184 +2,282 @@ import telebot
 import random
 import datetime
 import requests
-import time
 import os
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import re  
 
-TOKEN = "7805081492:AAHiW1kaxnCupaqR1zPYwKwFb8raqNTBQiE"
-CHANNEL_USERNAME = "dar3658"
-CHANNEL_LINK = "https://t.me/dar3658"
-ADMIN_ID = 7987662357  
-APPROVAL_RATE = 70  
-CHK_COST = 2  
-CHKK_COST = 5  
-CHKKK_COST = 0.50  
-JOIN_BONUS = 20  
-REFER_BONUS = 20  
+# ✅ Load Telegram Bot Token from Environment Variables
+TOKEN = os.getenv("7868412572:AAFmnuqTxofdZL0Em63QdRF1qM9Q794rKAY")  
+CHANNEL_USERNAME = "dar3658"  # Your Telegram Channel Username (without @)
+CHANNEL_LINK = f"https://t.me/{CHANNEL_USERNAME}"
 
 bot = telebot.TeleBot(TOKEN)
-users = {}  
-redeem_codes = {}  
 
-# ✅ Check if user is a member of the channel
-def is_user_member(user_id):
+# ✅ Function to Check if a User is in the Channel
+def is_user_in_channel(user_id):
     try:
-        member_status = bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id).status
-        return member_status in ["member", "administrator", "creator"]
+        response = bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
+        return response.status in ["member", "administrator", "creator"]
     except:
-        return False
+        return False  # If error, assume the user is not a member
 
-# ✅ Force users to join the channel
-def force_join_message(chat_id):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Join Channel", url=CHANNEL_LINK))
-    bot.send_message(chat_id, "⚠️ **You must join our official channel to use this bot!**", reply_markup=markup)
+# ✅ Function to Fetch BIN Details
+def bin_lookup(bin_number):
+    try:
+        response = requests.get(f"https://lookup.binlist.net/{bin_number}", timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        return (
+            data.get('scheme', 'Unknown').capitalize(),
+            data.get('bank', {}).get('name', 'Unknown'),
+            data.get('country', {}).get('name', 'Unknown')
+        )
+    except requests.exceptions.RequestException:
+        return 'Unknown', 'Unknown', 'Unknown'
 
-# ✅ Register a new user with starting credits
-def add_user(user_id):
-    if user_id not in users:
-        users[user_id] = {"credits": JOIN_BONUS, "is_premium": False, "banned": False, "referrals": 0}
+# ✅ Function to Validate Card Number (Luhn Algorithm)
+def luhn_algorithm(card_number):
+    digits = [int(d) for d in card_number]
+    for i in range(len(digits) - 2, -1, -2):
+        digits[i] *= 2
+        if digits[i] > 9:
+            digits[i] -= 9
+    return sum(digits) % 10 == 0
 
-# ✅ **ADMIN: Add Premium User**
-@bot.message_handler(commands=['addpremium'])
-def add_premium(message):
-    if message.chat.id != ADMIN_ID:
-        bot.reply_to(message, "⚠️ **You don't have permission to use this command!**")
-        return
+# ✅ Function to Generate a Valid Card
+def generate_card(bin_number):
+    if len(bin_number) not in [6, 8, 9]:
+        return None, None, None
 
-    args = message.text.split()
-    if len(args) < 2:
-        bot.reply_to(message, "⚠️ **Use:** `/addpremium USER_ID`")
-        return
+    card_body = bin_number + "".join(str(random.randint(0, 9)) for _ in range(16 - len(bin_number) - 1))
+    for last_digit in range(10):
+        potential_card = card_body + str(last_digit)
+        if luhn_algorithm(potential_card):
+            card_type, issuer, country = bin_lookup(bin_number)
+            expiry_month = str(random.randint(1, 12)).zfill(2)
+            expiry_year = str(random.randint(datetime.datetime.now().year % 100, 29))
+            cvc = str(random.randint(100, 999))
+            return f"{potential_card}|{expiry_month}|{expiry_year}|{cvc}", card_type, issuer, country
+    return None, None, None
 
-    target_user_id = int(args[1])
-    add_user(target_user_id)
-    users[target_user_id]['is_premium'] = True
-    bot.reply_to(message, f"✅ **User {target_user_id} is now a premium user!**")
+# ✅ Function to Generate Fake Email Combos
+def generate_fake_combo(quantity):
+    domains = ["gmail.com", "outlook.com"]
+    combos = []
 
-# ✅ **START Command**
+    for _ in range(quantity):
+        username = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz1234567890", k=12))
+        domain = random.choice(domains)
+        email = f"{username}@{domain}"
+        password = username[:8]  # First 8 characters of the email as the password
+        combos.append(f"{email}|{password}")
+
+    return combos
+
+# ✅ Function to Extract Card Data from Messages
+def extract_cards(text):
+    card_pattern = re.compile(r"\b(\d{16})\|(\d{2})\|(\d{2})\|(\d{3})\b")
+    return [match.group() for match in card_pattern.finditer(text)]
+
+# ✅ Command: /start (Join Requirement)
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    user_id = message.chat.id
-    if not is_user_member(user_id):
-        force_join_message(user_id)
-        return
+    user_id = message.from_user.id
 
-    add_user(user_id)
-    bot.send_message(
-        user_id,
-        f"🎉 **Welcome to Card Checker Bot v8.2!** 🎉\n"
-        f"You have **{users[user_id]['credits']} credits**.\n"
-        f"Refer users and earn **{REFER_BONUS} credits** per referral!\n\n"
-        f"🛠 **Commands:**\n"
-        f"📌 `/chk xxxxxxxxxxxxxxxx|xx|xxxx|xxx` → Costs **2 credits** per check.\n"
-        f"📌 `/chkk card1|mm|yy|cvv card2|mm|yy|cvv ...` → **Premium Only** (Costs 5 credits).\n"
-        f"📌 `/chkkk` → **Upload a TXT file** (Premium Only, $0.50 per approved card).\n"
-        f"📌 `/redeem CODE` → Redeem free credits.\n"
-        f"📌 `/credits` → Check your balance.\n\n"
-        f"💬 Join our channel: [Click Here]({CHANNEL_LINK})",
-        parse_mode="Markdown"
-    )
+    if is_user_in_channel(user_id):
+        bot.send_message(
+            message.chat.id,
+            f"✅ **Welcome to Advanced Generator & Checker Bot!**\n"
+            f"🔹 You now have full access to the bot.\n\n"
+            f"🛠 **Commands:**\n"
+            f"📌 `/gen 6xxxxx 5` → Generate credit cards\n"
+            f"📌 `/chk 4147201234567890` → Check card validity\n"
+            f"📌 `/combo 10` → Generate email combos\n"
+            f"📌 `/scr @groupusername` → Scrape and clean card details\n"
+            f"📌 `/txt any_text_here` → Clean text\n"
+            f"📌 **Send a file** to clean and get `Clear.txt`\n\n"
+            f"💬 Join our channel for updates: [Join Here]({CHANNEL_LINK})",
+            parse_mode="Markdown"
+        )
+    else:
+        join_button = telebot.types.InlineKeyboardMarkup()
+        join_button.add(telebot.types.InlineKeyboardButton("🔗 Join Channel", url=CHANNEL_LINK))
+        
+        bot.send_message(
+            message.chat.id,
+            "⚠️ **You must join our channel to use this bot!**\n"
+            "📢 Click the button below to join, then restart the bot.",
+            reply_markup=join_button
+        )
 
-# ✅ **Check User Credits**
-@bot.message_handler(commands=['credits'])
-def check_credits(message):
-    user_id = message.chat.id
-    bot.reply_to(message, f"💰 **You have {users[user_id]['credits']} credits.**")
+# ✅ Command: /scr (Scrape & Clean Card Data from a Public Group)
+@bot.message_handler(commands=['scr'])
+def scrape_group_cards(message):
+    try:
+        args = message.text.split()
+        if len(args) < 2:
+            bot.reply_to(message, "⚠️ **Please specify a public group!** Use: `/scr @groupusername`")
+            return
 
-# ✅ **Redeem Code**
-@bot.message_handler(commands=['redeem'])
-def redeem_code(message):
-    user_id = message.chat.id
+        group_username = args[1]
+        messages = bot.get_chat_history(group_username, limit=100)  # Fetch last 100 messages
+        raw_cards = set()
+
+        for msg in messages.messages:
+            if msg.text:
+                extracted_cards = extract_cards(msg.text)
+                raw_cards.update(extracted_cards)
+
+        if not raw_cards:
+            bot.reply_to(message, "❌ **No valid card details found in the group!**")
+            return
+
+        # Save cleaned cards to a file
+        file_path = "Card.txt"
+        with open(file_path, "w") as file:
+            file.write("\n".join(raw_cards))
+
+        # Send the file to the user
+        with open(file_path, "rb") as file:
+            bot.send_document(message.chat.id, file, caption=f"✅ **Extracted {len(raw_cards)} valid cards!**\n📂 **File:** Card.txt")
+
+    except Exception as e:
+        bot.reply_to(message, "❌ **Error scraping the group!** Make sure it's a public group.")
+
+# ✅ Command: /combo (Generate & Send Fake Email Combos)
+@bot.message_handler(commands=['combo'])
+def generate_combo_file(message):
     args = message.text.split()
-    if len(args) < 2 or args[1] not in redeem_codes:
-        bot.reply_to(message, "⚠️ **Invalid or expired redeem code!**")
+    if len(args) < 2 or not args[1].isdigit():
+        bot.reply_to(message, "⚠️ **Invalid format!** Use: `/combo 10`")
         return
 
-    credits = redeem_codes.pop(args[1])
-    users[user_id]['credits'] += credits
-    bot.reply_to(message, f"🎉 **Redeemed {credits} credits!** You now have {users[user_id]['credits']} credits.")
-
-# ✅ **ADMIN: Generate Redeem Code**
-@bot.message_handler(commands=['make_redeem'])
-def make_redeem_code(message):
-    if message.chat.id != ADMIN_ID:
+    quantity = int(args[1])
+    if quantity > 50:
+        bot.reply_to(message, "⚠️ **Max limit is 50 combos per request!**")
         return
 
-    code = f"RC{random.randint(10000, 99999)}"
-    redeem_codes[code] = 10  
-    bot.reply_to(message, f"🎁 **Redeem Code Created:** `{code}` (10 credits)")
+    combos = generate_fake_combo(quantity)
+    file_path = "Combo.txt"
+    with open(file_path, "w") as file:
+        file.write("\n".join(combos))
 
-# ✅ **ADMIN: Ban User**
-@bot.message_handler(commands=['ban'])
-def ban_user(message):
-    if message.chat.id != ADMIN_ID:
-        return
+    with open(file_path, "rb") as file:
+        bot.send_document(message.chat.id, file, caption=f"✅ **Generated {quantity} combos successfully!**\n📂 **File:** Combo.txt")
 
+# ✅ Start bot polling
+bot.polling()        potential_card = card_body + str(last_digit)
+        if luhn_algorithm(potential_card):
+            card_type, issuer, country = bin_lookup(bin_number)
+            expiry_month = str(random.randint(1, 12)).zfill(2)
+            expiry_year = str(random.randint(datetime.datetime.now().year % 100, 29))
+            cvc = str(random.randint(100, 999))
+            return f"{potential_card}|{expiry_month}|{expiry_year}|{cvc}", card_type, issuer, country
+    return None, None, None
+
+# ✅ Function to Generate Fake Email Combos
+def generate_fake_combo(quantity):
+    domains = ["gmail.com", "outlook.com"]
+    combos = []
+
+    for _ in range(quantity):
+        username = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz1234567890", k=12))
+        domain = random.choice(domains)
+        email = f"{username}@{domain}"
+        password = username[:8]  # First 8 characters of the email as the password
+        combos.append(f"{email}|{password}")
+
+    return combos
+
+# ✅ Function to Extract Card Data from Messages
+def extract_cards(text):
+    card_pattern = re.compile(r"\b(\d{16})\|(\d{2})\|(\d{2})\|(\d{3})\b")
+    return [match.group() for match in card_pattern.finditer(text)]
+
+# ✅ Command: /start (Join Requirement)
+@bot.message_handler(commands=['start'])
+def start_message(message):
+    user_id = message.from_user.id
+
+    if is_user_in_channel(user_id):
+        bot.send_message(
+            message.chat.id,
+            f"✅ **Welcome to Advanced Generator & Checker Bot!**\n"
+            f"🔹 You now have full access to the bot.\n\n"
+            f"🛠 **Commands:**\n"
+            f"📌 `/gen 6xxxxx 5` → Generate credit cards\n"
+            f"📌 `/chk 4147201234567890` → Check card validity\n"
+            f"📌 `/combo 10` → Generate email combos\n"
+            f"📌 `/scr @groupusername` → Scrape and clean card details\n"
+            f"📌 `/txt any_text_here` → Clean text\n"
+            f"📌 **Send a file** to clean and get `Clear.txt`\n\n"
+            f"💬 Join our channel for updates: [Join Here]({CHANNEL_LINK})",
+            parse_mode="Markdown"
+        )
+    else:
+        join_button = telebot.types.InlineKeyboardMarkup()
+        join_button.add(telebot.types.InlineKeyboardButton("🔗 Join Channel", url=CHANNEL_LINK))
+        
+        bot.send_message(
+            message.chat.id,
+            "⚠️ **You must join our channel to use this bot!**\n"
+            "📢 Click the button below to join, then restart the bot.",
+            reply_markup=join_button
+        )
+
+# ✅ Command: /scr (Scrape & Clean Card Data from a Public Group)
+@bot.message_handler(commands=['scr'])
+def scrape_group_cards(message):
+    try:
+        args = message.text.split()
+        if len(args) < 2:
+            bot.reply_to(message, "⚠️ **Please specify a public group!** Use: `/scr @groupusername`")
+            return
+
+        group_username = args[1]
+        messages = bot.get_chat_history(group_username, limit=100)  # Fetch last 100 messages
+        raw_cards = set()
+
+        for msg in messages.messages:
+            if msg.text:
+                extracted_cards = extract_cards(msg.text)
+                raw_cards.update(extracted_cards)
+
+        if not raw_cards:
+            bot.reply_to(message, "❌ **No valid card details found in the group!**")
+            return
+
+        # Save cleaned cards to a file
+        file_path = "Card.txt"
+        with open(file_path, "w") as file:
+            file.write("\n".join(raw_cards))
+
+        # Send the file to the user
+        with open(file_path, "rb") as file:
+            bot.send_document(message.chat.id, file, caption=f"✅ **Extracted {len(raw_cards)} valid cards!**\n📂 **File:** Card.txt")
+
+    except Exception as e:
+        bot.reply_to(message, "❌ **Error scraping the group!** Make sure it's a public group.")
+
+# ✅ Command: /combo (Generate & Send Fake Email Combos)
+@bot.message_handler(commands=['combo'])
+def generate_combo_file(message):
     args = message.text.split()
-    if len(args) < 2:
-        bot.reply_to(message, "⚠️ **Use:** `/ban USER_ID`")
+    if len(args) < 2 or not args[1].isdigit():
+        bot.reply_to(message, "⚠️ **Invalid format!** Use: `/combo 10`")
         return
 
-    user_id = int(args[1])
-    users[user_id]['banned'] = True
-    bot.reply_to(message, f"✅ **User {user_id} has been banned.**")
-
-# ✅ **Handle TXT file upload for bulk checking**
-@bot.message_handler(content_types=['document'])
-def handle_docs(message):
-    user_id = message.chat.id
-    if not is_user_member(user_id):
-        force_join_message(user_id)
+    quantity = int(args[1])
+    if quantity > 50:
+        bot.reply_to(message, "⚠️ **Max limit is 50 combos per request!**")
         return
 
-    if not users[user_id]["is_premium"]:
-        bot.reply_to(message, "⚠️ **This feature is only available for premium users!**")
-        return
+    combos = generate_fake_combo(quantity)
+    file_path = "Combo.txt"
+    with open(file_path, "w") as file:
+        file.write("\n".join(combos))
 
-    file_info = bot.get_file(message.document.file_id)
-    downloaded_file = bot.download_file(file_info.file_path)
+    with open(file_path, "rb") as file:
+        bot.send_document(message.chat.id, file, caption=f"✅ **Generated {quantity} combos successfully!**\n📂 **File:** Combo.txt")
 
-    with open(f"{user_id}.txt", 'wb') as new_file:
-        new_file.write(downloaded_file)
-
-    bot.reply_to(message, "🔍 **File received. Checking cards...** Please wait.")
-    time.sleep(3)
-
-    approved_cards = []
-    declined_cards = []
-    total_charge = 0.0
-
-    with open(f"{user_id}.txt", "r") as file:
-        for line in file.readlines():
-            card = line.strip()
-            if "|" not in card:
-                continue  
-
-            approval_chance = random.randint(1, 100)
-            if approval_chance <= APPROVAL_RATE:
-                approved_cards.append(card)
-                total_charge += CHKKK_COST
-            else:
-                declined_cards.append(card)
-
-    os.remove(f"{user_id}.txt")  
-
-    response = f"📌 **Card Checking Result:**\n"
-    if approved_cards:
-        response += f"\n✅ **Approved Cards ($0.50 Charge Each):**\n"
-        for card in approved_cards:
-            response += f"💳 `{card}`\n"
-        response += f"💲 **Total Charge: ${total_charge:.2f}**\n"
-
-    if declined_cards:
-        response += f"\n❌ **Declined Cards:**\n"
-        for card in declined_cards:
-            response += f"💳 `{card}`\n"
-
-    response += f"\n⏳ **Checked At:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    response += f"💬 **Join for More:** [Click Here]({CHANNEL_LINK})"
-
-    bot.reply_to(message, response, parse_mode="Markdown")
-
+# ✅ Start bot polling
 bot.polling()
