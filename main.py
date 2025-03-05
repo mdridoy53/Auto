@@ -6,7 +6,7 @@ import time
 import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TOKEN = "7805081492:AAHiW1kaxnCupaqR1zPYwKwFb8raqNTBQiE"
 CHANNEL_USERNAME = "dar3658"
 CHANNEL_LINK = "https://t.me/dar3658"
 ADMIN_ID = 7987662357  
